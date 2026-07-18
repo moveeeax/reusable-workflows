@@ -25,7 +25,7 @@ GitHub reusable workflows (workflow_call) + composite actions.
 ```yaml
 jobs:
   ci:
-    uses: moveeeax/reusable-workflows/.github/workflows/go.yml@v1
+    uses: cybercapybara/reusable-workflows/.github/workflows/go.yml@v1
 ```
 
 ## License
