@@ -1,0 +1,17 @@
+# Drop this into a Go repo as .github/workflows/ci.yml.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    uses: moveeeax/reusable-workflows/.github/workflows/go.yml@v1
+    with:
+      go-version: "1.23"
+      test-args: "-race -covermode=atomic -coverprofile=coverage.out ./..."

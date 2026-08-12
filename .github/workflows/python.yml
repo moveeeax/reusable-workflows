@@ -1,0 +1,73 @@
+name: Python CI (reusable)
+
+# Reusable Python pipeline: ruff lint + pytest across a version matrix.
+# Call it from any Python repo:
+#   jobs:
+#     ci:
+#       uses: moveeeax/reusable-workflows/.github/workflows/python.yml@v1
+#       with:
+#         python-versions: '["3.11", "3.12"]'
+
+on:
+  workflow_call:
+    inputs:
+      python-versions:
+        description: 'JSON array of Python versions to test against, e.g. ["3.11","3.12"].'
+        type: string
+        required: false
+        default: '["3.12"]'
+      working-directory:
+        description: "Directory to run lint and tests from."
+        type: string
+        required: false
+        default: "."
+      install:
+        description: "Command that installs the project and its dev dependencies."
+        type: string
+        required: false
+        default: "pip install -e '.[dev]' || pip install -r requirements.txt"
+      lint:
+        description: "Run ruff before the tests."
+        type: boolean
+        required: false
+        default: true
+      test-command:
+        description: "Command used to run the test suite."
+        type: string
+        required: false
+        default: "pytest -q"
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ${{ fromJSON(inputs.python-versions) }}
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@f677139bbe7f9c59b41e40162b753c062f5d49a3 # v5.2.0
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install
+        run: ${{ inputs.install }}
+
+      - name: Lint
+        if: ${{ inputs.lint }}
+        run: |
+          pip install ruff
+          ruff check .
+
+      - name: Test
+        run: ${{ inputs.test-command }}

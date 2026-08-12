@@ -1,0 +1,11 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+*.egg-info/
+
+# SBOM / build output produced by the workflows
+sbom.*.json
+coverage.out
+dist/

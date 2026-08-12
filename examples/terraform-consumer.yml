@@ -1,0 +1,18 @@
+# Drop this into a Terraform repo as .github/workflows/ci.yml.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    uses: moveeeax/reusable-workflows/.github/workflows/terraform.yml@v1
+    with:
+      terraform-version: "1.9.5"
+      working-directory: "."
+      backend: false

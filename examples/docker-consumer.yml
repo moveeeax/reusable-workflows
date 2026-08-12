@@ -1,0 +1,22 @@
+# Drop this into a repo with a Dockerfile as .github/workflows/image.yml.
+# Builds on every push; only pushes the image on a tag.
+name: Image
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  image:
+    uses: moveeeax/reusable-workflows/.github/workflows/docker.yml@v1
+    with:
+      image: ghcr.io/${{ github.repository }}
+      platforms: linux/amd64
+      push: ${{ github.ref_type == 'tag' }}
+    secrets:
+      registry-password: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,61 @@
+name: SBOM (reusable)
+
+# Reusable SBOM pipeline: generate an SPDX software bill of materials for a
+# directory or a built image and upload it as a build artifact.
+# Call it from any repo:
+#   jobs:
+#     sbom:
+#       uses: moveeeax/reusable-workflows/.github/workflows/sbom.yml@v1
+#       with:
+#         path: .
+
+on:
+  workflow_call:
+    inputs:
+      path:
+        description: "Directory to scan for dependencies (mutually exclusive with image)."
+        type: string
+        required: false
+        default: "."
+      image:
+        description: "Container image to scan instead of a directory (e.g. ghcr.io/owner/name:tag)."
+        type: string
+        required: false
+        default: ""
+      format:
+        description: "SBOM output format understood by syft (spdx-json, cyclonedx-json, ...)."
+        type: string
+        required: false
+        default: "spdx-json"
+      artifact-name:
+        description: "Name of the uploaded SBOM artifact."
+        type: string
+        required: false
+        default: "sbom"
+
+permissions:
+  contents: read
+
+jobs:
+  sbom:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        if: ${{ inputs.image == '' }}
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Generate SBOM
+        uses: anchore/sbom-action@61119d458adab75f756bc0b9e4bde25725f86a7a # v0.17.2
+        with:
+          path: ${{ inputs.image == '' && inputs.path || '' }}
+          image: ${{ inputs.image }}
+          format: ${{ inputs.format }}
+          output-file: sbom.${{ inputs.format }}
+          artifact-name: ${{ inputs.artifact-name }}.${{ inputs.format }}
+
+      - name: Upload SBOM
+        uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874 # v4.4.0
+        with:
+          name: ${{ inputs.artifact-name }}
+          path: sbom.${{ inputs.format }}
+          if-no-files-found: error

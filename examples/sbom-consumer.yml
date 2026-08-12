@@ -1,0 +1,16 @@
+# Drop this into any repo to publish an SBOM artifact on every push.
+name: SBOM
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  sbom:
+    uses: moveeeax/reusable-workflows/.github/workflows/sbom.yml@v1
+    with:
+      path: .
+      format: spdx-json

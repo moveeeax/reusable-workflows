@@ -1,0 +1,54 @@
+name: Release (reusable)
+
+# Reusable release pipeline: create a GitHub Release for the pushed tag with
+# auto-generated notes and optional artifacts.
+# Call it from any repo:
+#   on:
+#     push:
+#       tags: ["v*"]
+#   jobs:
+#     release:
+#       uses: moveeeax/reusable-workflows/.github/workflows/release.yml@v1
+
+on:
+  workflow_call:
+    inputs:
+      files:
+        description: "Newline- or comma-separated globs of files to attach to the release."
+        type: string
+        required: false
+        default: ""
+      draft:
+        description: "Create the release as a draft."
+        type: boolean
+        required: false
+        default: false
+      prerelease:
+        description: "Mark the release as a prerelease."
+        type: boolean
+        required: false
+        default: false
+      generate-notes:
+        description: "Let GitHub auto-generate release notes from merged PRs."
+        type: boolean
+        required: false
+        default: true
+
+# Creating a release requires write access to repository contents.
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Create release
+        uses: softprops/action-gh-release@c062e08bd532815e2082a85e87e3ef29c3e6d191 # v2.0.8
+        with:
+          files: ${{ inputs.files }}
+          draft: ${{ inputs.draft }}
+          prerelease: ${{ inputs.prerelease }}
+          generate_release_notes: ${{ inputs.generate-notes }}
