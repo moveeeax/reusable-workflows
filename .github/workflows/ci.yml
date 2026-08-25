@@ -3,7 +3,7 @@ name: CI
 # This repo's own CI. It does not consume the library — it *validates* it:
 # every reusable workflow and example is checked for workflow_call, documented
 # inputs, SHA-pinned actions and least-privilege permissions, then the pytest
-# suite runs. Executes on a self-hosted ARC runner (runs-on = scale set name).
+# suite runs. Executes on GitHub-hosted ubuntu-latest runners.
 
 on:
   push:
@@ -16,7 +16,7 @@ permissions:
 
 jobs:
   validate:
-    runs-on: reusable-workflows
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
