@@ -12,8 +12,8 @@ Every workflow here is `workflow_call`-able, ships with documented inputs, and p
 
 | Workflow | Purpose | Key inputs |
 | --- | --- | --- |
-| [`go.yml`](.github/workflows/go.yml) | golangci-lint + `go build` + `go test -race` | `go-version`, `test-args`, `lint` |
-| [`python.yml`](.github/workflows/python.yml) | ruff + pytest across a version matrix | `python-versions`, `install`, `test-command` |
+| [`go.yml`](.github/workflows/go.yml) | golangci-lint + `go build` + `go test -race` | `go-version`, `test-args`, `lint`, `golangci-version` |
+| [`python.yml`](.github/workflows/python.yml) | ruff + pytest across a version matrix | `python-versions`, `install`, `test-command`, `ruff-version` |
 | [`terraform.yml`](.github/workflows/terraform.yml) | `fmt -check` + `init` + `validate` | `terraform-version`, `working-directory`, `backend` |
 | [`docker.yml`](.github/workflows/docker.yml) | Buildx build + optional push with OCI tags/labels | `image`, `platforms`, `push` |
 | [`sbom.yml`](.github/workflows/sbom.yml) | Syft SBOM for a dir or image, uploaded as an artifact | `path`, `image`, `format` |
@@ -36,22 +36,22 @@ jobs:
   ci:
     uses: moveeeax/reusable-workflows/.github/workflows/go.yml@v1
     with:
-      go-version: "1.23"
+      go-version: "1.27"
 ```
 
 Ready-to-copy callers for every workflow live in [`examples/`](examples/).
 
 ## How it works
 
-Each file under `.github/workflows/` (except this repo's own `ci.yml`) is a **reusable workflow**: it declares `on.workflow_call` with typed, described inputs, so a caller passes only what it needs and inherits the rest. Pipelines request the narrowest `permissions` they can (`contents: read` for lint/test, `packages: write` only for image pushes, `contents: write` only for releases).
+Each file under `.github/workflows/` (except this repo's own `ci.yml`) is a **reusable workflow**: it declares `on.workflow_call` with typed, described inputs, so a caller passes only what it needs and inherits the rest. Pipelines request the narrowest `permissions` they can (`contents: read` for lint/test, `packages: write` for `docker.yml`, `contents: write` only for releases). Permissions in Actions cannot depend on an input, so `docker.yml` requests `packages: write` even when `push` is false, and the calling job has to grant it.
 
 Third-party actions are pinned to immutable commit SHAs, e.g.:
 
 ```yaml
-- uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+- uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 ```
 
-so a moved tag can't change what runs in your pipeline.
+so a moved tag can't change what runs in your pipeline. Dependabot (`.github/dependabot.yml`) proposes pin updates weekly.
 
 ## Guarantees (enforced in CI)
 
@@ -72,6 +72,16 @@ OK: 13 workflow file(s) validated, 0 errors.
 $ pytest -q
 ........................                                                 [100%]
 ```
+
+## Breaking changes since v1
+
+This set of changes is not backward compatible for every caller:
+
+- `go.yml` now runs golangci-lint v2 (default `golangci-version: v2.15.0`) through golangci-lint-action v9, which only supports v2. golangci-lint v2 uses a new config format: a `.golangci.yml` written for v1 fails to load. Add `version: "2"` and migrate the file with `golangci-lint migrate` (see the [v2 migration guide](https://golangci-lint.run/docs/product/migration-guide/)). Passing `golangci-version: v1.x` no longer works.
+- `go.yml` defaults to Go `1.27` (was `1.23`). Pass `go-version` to keep an older toolchain.
+- `terraform.yml` defaults to Terraform `1.17.1` (was `1.9.5`) and uses setup-terraform v4. Pass `terraform-version` if your code or state requires an older release.
+- `python.yml` installs a pinned ruff (`ruff-version`, default `0.17.3`) instead of whatever is latest. New ruff releases no longer change lint results silently; bump the input to pick them up.
+- All pinned actions moved to their current major versions (checkout v7, setup-go v7, setup-python v7, upload-artifact v7, build-push-action v7, setup-buildx-action v4, login-action v4, metadata-action v6, action-gh-release v3). They run on Node 24, so self-hosted runners must be recent enough to support it.
 
 ## Versioning
 
