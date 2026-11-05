@@ -13,6 +13,6 @@ jobs:
   ci:
     uses: moveeeax/reusable-workflows/.github/workflows/terraform.yml@v1
     with:
-      terraform-version: "1.9.5"
+      terraform-version: "1.17.1"
       working-directory: "."
       backend: false
