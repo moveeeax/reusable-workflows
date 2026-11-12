@@ -20,6 +20,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Install Python
         run: |
@@ -49,14 +51,16 @@ jobs:
           pytest -q
 
   # Run the audit workflow against this repo itself, so a change to audit.yml
-  # is exercised end to end. Findings are reported but do not fail CI; fork
-  # PRs cannot upload SARIF, so they get annotations instead.
+  # is exercised end to end. Any finding fails CI; fork PRs cannot upload
+  # SARIF, so they get annotations instead. $/ is GitHub's self-repository
+  # syntax: it loads audit.yml from the commit being tested, not from
+  # whatever is on the runner's filesystem.
   audit:
     permissions:
       contents: read
       security-events: write
       actions: read
-    uses: ./.github/workflows/audit.yml
+    uses: $/.github/workflows/audit.yml
     with:
-      fail-on-findings: false
+      fail-on-findings: true
       upload-sarif: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}

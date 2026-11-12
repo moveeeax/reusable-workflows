@@ -22,7 +22,7 @@ on:
         required: false
         default: "."
       test-args:
-        description: "Extra flags appended to `go test` (packages default to ./...)."
+        description: "Arguments passed to `go test`, split with shell-style quoting but not run through a shell: no $VAR, glob or command expansion."
         type: string
         required: false
         default: "-race -covermode=atomic -coverprofile=coverage.out ./..."
@@ -50,6 +50,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
@@ -67,5 +69,11 @@ jobs:
       - name: Build
         run: go build ./...
 
+      # test-args comes in through env and is split with Python's shlex
+      # (POSIX shell quoting rules, no expansion or command execution), so a
+      # value like `-run 'TestA|TestB' ./...` still works but nothing in it can
+      # run as code. -I keeps Python from importing modules out of the repo.
       - name: Test
-        run: go test ${{ inputs.test-args }}
+        run: python3 -I -c 'import os, shlex; os.execvp("go", ["go", "test", *shlex.split(os.environ["TEST_ARGS"])])'
+        env:
+          TEST_ARGS: ${{ inputs.test-args }}
