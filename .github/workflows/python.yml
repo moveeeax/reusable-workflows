@@ -22,7 +22,7 @@ on:
         required: false
         default: "."
       install:
-        description: "Command that installs the project and its dev dependencies."
+        description: "Bash command that installs the project and its dev dependencies. It runs as code: never build it from untrusted context such as PR titles or branch names."
         type: string
         required: false
         default: "pip install -e '.[dev]' || pip install -r requirements.txt"
@@ -32,7 +32,7 @@ on:
         required: false
         default: true
       test-command:
-        description: "Command used to run the test suite."
+        description: "Bash command that runs the test suite. It runs as code: never build it from untrusted context such as PR titles or branch names."
         type: string
         required: false
         default: "pytest -q"
@@ -58,6 +58,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
@@ -65,8 +67,14 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: pip
 
+      # install and test-command are shell commands by contract (the default
+      # install uses ||), so they are eval'ed. They reach the shell through
+      # env instead of being expanded into the script text, which keeps the
+      # step script fixed and parses the value exactly as before.
       - name: Install
-        run: ${{ inputs.install }}
+        run: eval "${INSTALL_COMMAND}"
+        env:
+          INSTALL_COMMAND: ${{ inputs.install }}
 
       - name: Lint
         if: ${{ inputs.lint }}
@@ -77,4 +85,6 @@ jobs:
           RUFF_VERSION: ${{ inputs.ruff-version }}
 
       - name: Test
-        run: ${{ inputs.test-command }}
+        run: eval "${TEST_COMMAND}"
+        env:
+          TEST_COMMAND: ${{ inputs.test-command }}

@@ -104,6 +104,9 @@ This set of changes is not backward compatible for every caller:
 - `terraform.yml` defaults to Terraform `1.17.1` (was `1.9.5`) and uses setup-terraform v4. Pass `terraform-version` if your code or state requires an older release.
 - `python.yml` installs a pinned ruff (`ruff-version`, default `0.17.3`) instead of whatever is latest. New ruff releases no longer change lint results silently; bump the input to pick them up.
 - All pinned actions moved to their current major versions (checkout v7, setup-go v7, setup-python v7, upload-artifact v7, build-push-action v7, setup-buildx-action v4, login-action v4, metadata-action v6, action-gh-release v3). They run on Node 24, so self-hosted runners must be recent enough to support it.
+- Every `actions/checkout` step sets `persist-credentials: false` ([zizmor artipacked](https://docs.zizmor.sh/audits/#artipacked)). The job token is no longer left in `.git/config`, so a `git fetch` or `git push` inside `python.yml`'s `install`/`test-command` against a private repo no longer authenticates. None of the workflows push with git themselves; `release.yml` and `docker.yml` get their tokens through action inputs.
+- `go.yml` passes `test-args` to `go test` without a shell ([zizmor template-injection](https://docs.zizmor.sh/audits/#template-injection)). The value is split with POSIX shell quoting rules (`-run 'TestA|TestB' ./...` still works), but `$VAR`, globs, `~`, `;` and `$(...)` are no longer expanded: they reach `go test` as literal arguments.
+- `python.yml` still runs `install` and `test-command` as bash commands (that is what the inputs are for), now read from an env var and `eval`ed instead of being spliced into the step script. Treat both as code: never build them from untrusted context such as PR titles or branch names.
 
 ## Versioning
 
