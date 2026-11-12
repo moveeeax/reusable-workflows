@@ -9,6 +9,7 @@ These map one-to-one onto the acceptance criteria in the project spec:
 from __future__ import annotations
 
 from pathlib import Path
+import re
 
 import pytest
 import yaml
@@ -38,7 +39,7 @@ def test_there_are_reusable_workflows():
     names = {p.name for p in REUSABLE}
     # The MVP scope: lint/test starters + container build + sbom + release.
     for expected in ("go.yml", "python.yml", "terraform.yml", "docker.yml",
-                     "sbom.yml", "release.yml"):
+                     "sbom.yml", "release.yml", "audit.yml"):
         assert expected in names, f"missing reusable workflow {expected}"
 
 
@@ -84,3 +85,21 @@ def test_every_reusable_workflow_has_an_example():
                 referenced.add(uses.split("@", 1)[0].split("/")[-1].removesuffix(".yml"))
     missing = shipped - referenced
     assert not missing, f"no example caller for: {sorted(missing)}"
+
+
+def test_audit_workflow_contract():
+    doc = _load(WF_DIR / "audit.yml")
+    inputs = validate._on_block(doc)["workflow_call"]["inputs"]
+    for name in ("min-severity", "fail-on-findings", "upload-sarif", "zizmor-version"):
+        assert name in inputs, f"audit.yml lacks input {name}"
+    assert inputs["fail-on-findings"]["type"] == "boolean"
+    # zizmor must be pinned to an exact version, never "latest".
+    assert re.fullmatch(r"\d+\.\d+\.\d+", inputs["zizmor-version"]["default"])
+    # SARIF upload to code scanning needs security-events: write.
+    assert doc["permissions"].get("security-events") == "write"
+    assert doc["permissions"].get("contents") == "read"
+    steps = doc["jobs"]["audit"]["steps"]
+    zizmor = next(s for s in steps if s.get("uses", "").startswith("zizmorcore/zizmor-action@"))
+    assert zizmor["with"]["version"] == "${{ inputs.zizmor-version }}"
+    checkout = next(s for s in steps if s.get("uses", "").startswith("actions/checkout@"))
+    assert checkout["with"]["persist-credentials"] is False

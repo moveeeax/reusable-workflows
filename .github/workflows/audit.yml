@@ -1,0 +1,97 @@
+name: Workflow audit (reusable)
+
+# Reusable workflow audit: run a pinned zizmor over the caller's GitHub Actions
+# workflows (template injection, over-broad permissions, credential
+# persistence, unpinned actions, ...) and upload the findings to code scanning
+# as SARIF.
+# Call it from any repo:
+#   permissions:
+#     contents: read
+#     security-events: write
+#     actions: read
+#   jobs:
+#     audit:
+#       uses: moveeeax/reusable-workflows/.github/workflows/audit.yml@v1
+#       with:
+#         min-severity: medium
+
+on:
+  workflow_call:
+    inputs:
+      path:
+        description: "Directory or files to audit, whitespace-separated. A directory is scanned for workflows, composite actions and Dependabot config."
+        type: string
+        required: false
+        default: "."
+      min-severity:
+        description: "Lowest finding severity to report: unknown, informational, low, medium or high."
+        type: string
+        required: false
+        default: "low"
+      fail-on-findings:
+        description: "Fail the job when zizmor reports at least one finding at or above min-severity."
+        type: boolean
+        required: false
+        default: true
+      upload-sarif:
+        description: "Upload findings to code scanning as SARIF (needs code scanning on the repo). When false, findings are shown as job annotations instead."
+        type: boolean
+        required: false
+        default: true
+      zizmor-version:
+        description: "Exact zizmor version to run (pinned for reproducible audit results)."
+        type: string
+        required: false
+        default: "1.31.1"
+
+# security-events: write uploads SARIF; actions: read is what upload-sarif
+# needs to read the run status in private repositories.
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # In SARIF mode zizmor exits 0 even with findings, so the gate below
+      # counts results in the SARIF file. In annotation mode zizmor exits
+      # 11-14 on findings, so the step itself is the gate.
+      - name: Run zizmor
+        id: zizmor
+        uses: zizmorcore/zizmor-action@53290badfa369cb0bf7ad16342cb62c2fa47ac7b # v0.8.0
+        continue-on-error: ${{ !inputs.upload-sarif && !inputs.fail-on-findings }}
+        with:
+          inputs: ${{ inputs.path }}
+          min-severity: ${{ inputs.min-severity }}
+          version: ${{ inputs.zizmor-version }}
+          advanced-security: ${{ inputs.upload-sarif }}
+          annotations: ${{ !inputs.upload-sarif }}
+
+      - name: Check findings
+        if: ${{ inputs.upload-sarif }}
+        run: |
+          set -eu
+          count="$(jq '[.runs[].results[] | select((.suppressions // []) | length == 0)] | length' "${SARIF_FILE}")"
+          echo "zizmor reported ${count} finding(s) at or above ${MIN_SEVERITY}"
+          if [ "${count}" -gt 0 ]; then
+            if [ "${FAIL_ON_FINDINGS}" = "true" ]; then
+              echo "::error::zizmor reported ${count} finding(s); see the code scanning alerts for this run"
+              exit 1
+            fi
+            echo "::warning::zizmor reported ${count} finding(s); see the code scanning alerts for this run"
+          fi
+        env:
+          SARIF_FILE: ${{ steps.zizmor.outputs.output-file }}
+          MIN_SEVERITY: ${{ inputs.min-severity }}
+          FAIL_ON_FINDINGS: ${{ inputs.fail-on-findings }}
+
+      - name: Report tolerated failure
+        if: ${{ !inputs.upload-sarif && steps.zizmor.outcome == 'failure' }}
+        run: echo "::warning::zizmor exited non-zero (findings or an error); fail-on-findings is false, so the job continues"

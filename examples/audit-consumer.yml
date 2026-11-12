@@ -1,0 +1,25 @@
+# Drop this into any repo to audit its GitHub Actions workflows with zizmor
+# on every push and pull request. Findings land in the Security tab
+# (code scanning). Pull requests from forks get a read-only token and cannot
+# upload SARIF, so those runs report findings as annotations instead.
+name: Workflow audit
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    uses: moveeeax/reusable-workflows/.github/workflows/audit.yml@v1
+    with:
+      min-severity: medium
+      fail-on-findings: true
+      upload-sarif: ${{ github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository }}
