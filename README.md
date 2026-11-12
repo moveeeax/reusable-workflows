@@ -18,6 +18,7 @@ Every workflow here is `workflow_call`-able, ships with documented inputs, and p
 | [`docker.yml`](.github/workflows/docker.yml) | Buildx build + optional push with OCI tags/labels | `image`, `platforms`, `push` |
 | [`sbom.yml`](.github/workflows/sbom.yml) | Syft SBOM for a dir or image, uploaded as an artifact | `path`, `image`, `format` |
 | [`release.yml`](.github/workflows/release.yml) | GitHub Release for a tag with auto-notes | `files`, `prerelease`, `generate-notes` |
+| [`audit.yml`](.github/workflows/audit.yml) | zizmor audit of the caller's workflows, SARIF to code scanning | `min-severity`, `fail-on-findings`, `upload-sarif`, `zizmor-version` |
 
 ## Usage
 
@@ -41,9 +42,30 @@ jobs:
 
 Ready-to-copy callers for every workflow live in [`examples/`](examples/).
 
+## Auditing your own workflows
+
+`audit.yml` runs [zizmor](https://docs.zizmor.sh/) (pinned, default `1.31.1`) over the caller's repository: workflows, composite actions and Dependabot config. It reports template injection, over-broad `permissions`, persisted checkout credentials, unpinned actions and the other [zizmor audits](https://docs.zizmor.sh/audits/).
+
+```yaml
+jobs:
+  audit:
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    uses: moveeeax/reusable-workflows/.github/workflows/audit.yml@v1
+    with:
+      min-severity: medium
+```
+
+- With `upload-sarif: true` (default) findings are uploaded to code scanning and show up in the Security tab. This needs code scanning on the repo: free for public repos, GitHub Advanced Security for private ones. The calling job must grant `security-events: write`; `actions: read` is only used in private repos.
+- With `upload-sarif: false` findings are printed as job annotations and nothing is uploaded. Use it for private repos without code scanning and for pull requests from forks, whose token cannot write security events (see [`examples/audit-consumer.yml`](examples/audit-consumer.yml)).
+- `fail-on-findings: true` (default) fails the job when at least one finding at or above `min-severity` (default `low`) remains after zizmor's ignore comments and `zizmor.yml` config. With `false` the job passes and adds a warning. In annotation mode zizmor's exit code cannot tell findings from a crash, so with `fail-on-findings: false` an error is also only a warning.
+- zizmor picks up a `zizmor.yml` or `.github/zizmor.yml` in the caller's repo for per-rule ignores.
+
 ## How it works
 
-Each file under `.github/workflows/` (except this repo's own `ci.yml`) is a **reusable workflow**: it declares `on.workflow_call` with typed, described inputs, so a caller passes only what it needs and inherits the rest. Pipelines request the narrowest `permissions` they can (`contents: read` for lint/test, `packages: write` for `docker.yml`, `contents: write` only for releases). Permissions in Actions cannot depend on an input, so `docker.yml` requests `packages: write` even when `push` is false, and the calling job has to grant it.
+Each file under `.github/workflows/` (except this repo's own `ci.yml`) is a **reusable workflow**: it declares `on.workflow_call` with typed, described inputs, so a caller passes only what it needs and inherits the rest. Pipelines request the narrowest `permissions` they can (`contents: read` for lint/test, `packages: write` for `docker.yml`, `security-events: write` for `audit.yml`, `contents: write` only for releases). Permissions in Actions cannot depend on an input, so `docker.yml` requests `packages: write` even when `push` is false, and the calling job has to grant it.
 
 Third-party actions are pinned to immutable commit SHAs, e.g.:
 
@@ -68,9 +90,9 @@ Run it locally:
 ```console
 $ pip install -r requirements.txt
 $ python3 tools/validate.py
-OK: 13 workflow file(s) validated, 0 errors.
+OK: 15 workflow file(s) validated, 0 errors.
 $ pytest -q
-........................                                                 [100%]
+..........................                                               [100%]
 ```
 
 ## Breaking changes since v1

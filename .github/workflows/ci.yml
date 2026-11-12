@@ -47,3 +47,16 @@ jobs:
           set -eux
           . .venv/bin/activate
           pytest -q
+
+  # Run the audit workflow against this repo itself, so a change to audit.yml
+  # is exercised end to end. Findings are reported but do not fail CI; fork
+  # PRs cannot upload SARIF, so they get annotations instead.
+  audit:
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    uses: ./.github/workflows/audit.yml
+    with:
+      fail-on-findings: false
+      upload-sarif: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
